@@ -6,6 +6,7 @@ import math
 
 client = discord.Client()
 sessions = []
+session_id = 0
 
 API_HOST = "99.189.77.224"
 API_PORT = "8000"
@@ -66,25 +67,123 @@ def best_move(message, board, player):
     )
 
 
-async def new(message):
-    board_matrix = deserialize_board("E" * 9)
-    board_message = "```toml\n"
-    sessions.append(board_matrix)
-    board_message += "[session id: " + str(len(sessions) - 1) + "]\n\n"
+class GameState:
+    def __init__(self):
+        self.board_matrix = [[Player.E] * 3] * 3
+        self.player = Player.X
 
-    for row in board_matrix:
+    def set_owner(self, author):
+        self.owner = author
+
+    def set(self, board_string):
+        self.board_matrix = deserialize_board(board_string)
+
+    def toggle(self):
+        self.player = -self.player
+
+    def declare_win(self, player):
+        self.game_over = True
+        self.winning_player = player
+
+
+async def new(message):
+    board = GameState()
+    board.set_owner(message.author)
+    board.set("E" * 9)
+    sessions.append(board)
+    global session_id
+    session_id = len(sessions) - 1
+    board_message = f"```toml\n[session id: {session_id}] [player: " \
+                    f"{serialize_turn(sessions[session_id].player)}]\n\n"
+
+    i = 0
+    for row in board.board_matrix:
         for cell in row:
-            board_message += " " + serialize_turn(cell)
+            board_message += " "
+            if cell != Player.E:
+                board_message += serialize_turn(cell)
+            else:
+                board_message += str(i)
+            i += 1
         board_message += "\n"
     board_message += "```"
 
     await message.channel.send(board_message)
 
 
+async def move(message, args):
+    k = 0
+    global session_id
+    for i in range(3):
+        for j in range(3):
+            if k == int(args[2]):
+                if sessions[session_id].board_matrix[i][j] == Player.E:
+                    sessions[session_id].board_matrix[i][j] = sessions[session_id].player
+                    sessions[session_id].toggle()
+                else:
+                    await message.channel.send(f"```diff\n-move already taken by {serialize_turn(sessions[session_id].board_matrix[i][j])}```")
+                    return
+            k += 1
+
+    board_message = "```toml\n" \
+                    f"[session id: {str(session_id)}] [player: " \
+                    f"{serialize_turn(sessions[session_id].player)}]\n\n"
+    i = 0
+    for row in sessions[session_id].board_matrix:
+        for cell in row:
+            board_message += " "
+            if cell != Player.E:
+                board_message += serialize_turn(cell)
+            else:
+                board_message += str(i)
+            i += 1
+        board_message += "\n"
+    board_message += "```"
+    await message.channel.send(board_message)
+
+
 # ttt main function (process args etc)
 async def ttt(message, args):
+    if args[1] == "move":
+        await move(message, args)
+
+    if args[1] == "select":
+        global session_id
+        if int(args[2]) <= len(sessions) - 1:
+            session_id = int(args[2])
+            await message.channel.send("```diff\n+switched to game with "
+                                       f"session_id: {int(args[2])}```")
+        else:
+            await message.channel.send("```diff\n-game with session_id: "
+                                       f"{int(args[2])} is nonexistent. You "
+                                       "can create a game with ttt new.```")
+
     if args[1] == "new":
         await new(message)
+
+    if args[1] == "list":
+        board_message = "```toml\n[boards]:\n"
+        for i in range(len(sessions)):
+            board_message += f"\t[session_id: {i}] [owner: {sessions[i].owner}]\n"
+        board_message += "```"
+        await message.channel.send(board_message)
+
+    if args[1] == "print":
+        board_message = "```toml\n" \
+                        f"[session id: {str(session_id)}] [player:" \
+                        f"{serialize_turn(sessions[session_id].player)}]\n\n"
+        i = 0
+        for row in sessions[session_id].board_matrix:
+            for cell in row:
+                board_message += " "
+                if cell != Player.E:
+                    board_message += serialize_turn(cell)
+                else:
+                    board_message += str(i)
+                i += 1
+            board_message += "\n"
+        board_message += "```"
+        await message.channel.send(board_message)
 
 
 @client.event
