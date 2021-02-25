@@ -151,12 +151,15 @@ async def ttt(message, args):
         global session_id
         if int(args[2]) <= len(sessions) - 1:
             session_id = int(args[2])
-            await message.channel.send("```diff\n+switched to game with "
-                                       f"session_id: {int(args[2])}```")
-        else:
-            await message.channel.send("```diff\n-game with session_id: "
-                                       f"{int(args[2])} is nonexistent. You "
-                                       "can create a game with ttt new.```")
+
+        board_message = "```toml\n[boards]:\n"
+        for i in range(len(sessions)):
+            if i == session_id:
+                board_message += f"\t[session_id: {i}] [owner: {sessions[i].owner}]\n"
+            else:
+                board_message += f"\t session_id: {i} | owner: {sessions[i].owner}\n"
+        board_message += "```"
+        await message.channel.send(board_message)
 
     if args[1] == "new":
         await new(message)
@@ -164,7 +167,10 @@ async def ttt(message, args):
     if args[1] == "list":
         board_message = "```toml\n[boards]:\n"
         for i in range(len(sessions)):
-            board_message += f"\t[session_id: {i}] [owner: {sessions[i].owner}]\n"
+            if i == session_id:
+                board_message += f"\t[session_id: {i}] [owner: {sessions[i].owner}]\n"
+            else:
+                board_message += f"\t session_id: {i} | owner: {sessions[i].owner}\n"
         board_message += "```"
         await message.channel.send(board_message)
 
@@ -200,6 +206,7 @@ async def on_message(message):
 
     if args[0] == "ttt":
         await ttt(message, args)
+        await message.delete()
 
 
 client.run(token)
