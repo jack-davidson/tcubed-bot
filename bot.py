@@ -76,12 +76,13 @@ class Session:
     class MoveAlreadyTakenError(Exception):
         pass
 
-    def __init__(self, board_string, owner="unkown", bot=False):
+    def __init__(self, board_string, guest="unkown", owner="unkown", bot=False):
         global session_id
 
         self.board_matrix = deserialize_board(board_string)
         self.player = Player.X
         self.owner = owner
+        self.guest = guest
         self.bot = bot
 
         sessions.append(self)
@@ -128,8 +129,9 @@ class Session:
 
 
 async def new(message, bot=False):
-    board = Session("E" * 9, owner=message.author)
+    board = Session("E" * 9, owner=str(message.author))
     if bot is not False:
+        board.guest = "BOT"
         board.bot = bot
     await message.channel.send(str(board))
 
@@ -138,42 +140,38 @@ async def move(message, args):
     global session_id
     k = 0
     board = sessions[session_id]
+
+    if str(message.author) != str(board.owner):
+        board.guest = message.author
+
+    if str(message.author) not in (str(board.owner), str(board.guest)):
+        await message.channel.send(f"only {board.owner} and {board.guest} are allowed to play in this session")
+        return
+
     if not board.moves_left():
         await message.channel.send("there are no moves left")
         return
 
-    if board.bot is not False:
-        for i in range(3):
-            for j in range(3):
-                if k == int(args[2]):
-                    try:
-                        board.move(i, j)
-                    except Session.MoveAlreadyTakenError:
-                        await message.channel.send(
-                            "```diff\n-move already taken by "
-                            f"{serialize_turn(board.board_matrix[i][j])}```"
-                        )
-                        return
-                k += 1
+    for i in range(3):
+        for j in range(3):
+            if k == int(args[2]):
+                try:
+                    board.move(i, j)
+                except Session.MoveAlreadyTakenError:
+                    await message.channel.send(
+                        "```diff\n-move already taken by "
+                        f"{serialize_turn(board.board_matrix[i][j])}```"
+                    )
+                    return
+            k += 1
 
-        await message.channel.send(f"```toml\n[Player {serialize_turn(board.player)} is thinking ...]```")
+    if board.bot is not False:
         if not board.moves_left():
             await message.channel.send("there are no moves left")
             return
+
+        await message.channel.send(f"```toml\n[Player {serialize_turn(board.player)} is thinking ...]```")
         board.move(*best_move(serialize_board(board.board_matrix), serialize_turn(board.player)))
-    else:
-        for i in range(3):
-            for j in range(3):
-                if k == int(args[2]):
-                    try:
-                        board.move(i, j)
-                    except Session.MoveAlreadyTakenError:
-                        await message.channel.send(
-                            "```diff\n-move already taken by "
-                            f"{serialize_turn(board.board_matrix[i][j])}```"
-                        )
-                        return
-                k += 1
 
     await message.channel.send(str(board))
 
@@ -190,11 +188,11 @@ async def list_sessions(message):
     board_message = "```toml\n[boards]:\n"
     for i in range(len(sessions)):
         if i == session_id:
-            board_message += f"\t[session_id: {i}] [owner: " \
-                f"{sessions[i].owner}]\n"
+            board_message += f"\t[session_id: {i}] [player 1 (X): " \
+                f"{sessions[i].owner}] [player 2 (O): {sessions[i].guest}]\n"
         else:
-            board_message += f"\t session_id: {i} | owner: " \
-                f"{sessions[i].owner}\n"
+            board_message += f"\t session_id: {i} | player 1 (X): " \
+                f"{sessions[i].owner} | player 2 (O): {sessions[i].guest}\n"
     board_message += "```"
     await message.channel.send(board_message)
 
@@ -234,6 +232,7 @@ async def on_message(message):
     args = message.content.split()
 
     if args[0] == "ttt":
+        print(f"[New Connection] {message.author}")
         await ttt(message, args)
 
 
