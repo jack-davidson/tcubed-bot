@@ -5,6 +5,7 @@ import requests
 import math
 
 client = discord.Client()
+
 sessions = []
 session_id = 0
 
@@ -67,77 +68,96 @@ def best_move(message, board, player):
     )
 
 
-class GameState:
-    def __init__(self):
-        self.board_matrix = [[Player.E] * 3] * 3
-        self.player = Player.X
+class Session:
+    class MoveAlreadyTakenError(Exception):
+        pass
 
-    def set_owner(self, author):
-        self.owner = author
-
-    def set(self, board_string):
+    def __init__(self, board_string, owner="unkown", bot=False):
+        global session_id
+        self.bot = bot
         self.board_matrix = deserialize_board(board_string)
+        self.player = Player.X
+        self.owner = owner
+        sessions.append(self)
+        session_id = len(sessions) - 1
 
-    def toggle(self):
+    def next_player(self):
         self.player = -self.player
 
     def declare_win(self, player):
         self.game_over = True
         self.winning_player = player
 
+    def move(self, row, col):
+        if self.board_matrix[row][col] == Player.E:
+            self.board_matrix[row][col] = self.player
+            self.next_player()
+        else:
+            raise Session.MoveAlreadyTakenError
 
-async def new(message):
-    board = GameState()
-    board.set_owner(message.author)
-    board.set("E" * 9)
-    sessions.append(board)
-    global session_id
-    session_id = len(sessions) - 1
-    board_message = f"```toml\n[session id: {session_id}] [player: " \
-                    f"{serialize_turn(sessions[session_id].player)}]\n\n"
+    def __str__(self):
+        board_string = ""
+        i = 0
+        for row in self.board_matrix:
+            for cell in row:
+                board_string += " "
+                if cell != Player.E:
+                    board_string += serialize_turn(cell)
+                else:
+                    board_string += str(i)
+                i += 1
+            board_string += "\n"
 
-    i = 0
-    for row in board.board_matrix:
-        for cell in row:
-            board_message += " "
-            if cell != Player.E:
-                board_message += serialize_turn(cell)
-            else:
-                board_message += str(i)
-            i += 1
-        board_message += "\n"
-    board_message += "```"
+        return "```toml\n" \
+               f"[session id: {str(session_id)}] [player: " \
+               f"{serialize_turn(self.player)}]\n\n" \
+               f"{board_string}```"
 
-    await message.channel.send(board_message)
+
+async def new(message, bot=False):
+    board = Session("E" * 9, owner=message.author)
+    if bot is not False:
+        board.bot = bot
+    await message.channel.send(str(board))
 
 
 async def move(message, args):
-    k = 0
     global session_id
+    k = 0
+    board = sessions[session_id]
     for i in range(3):
         for j in range(3):
             if k == int(args[2]):
-                if sessions[session_id].board_matrix[i][j] == Player.E:
-                    sessions[session_id].board_matrix[i][j] = sessions[session_id].player
-                    sessions[session_id].toggle()
-                else:
-                    await message.channel.send(f"```diff\n-move already taken by {serialize_turn(sessions[session_id].board_matrix[i][j])}```")
+                try:
+                    board.move(i, j)
+                except Session.MoveAlreadyTakenError:
+                    await message.channel.send(
+                        "```diff\n-move already taken by "
+                        f"{serialize_turn(board.board_matrix[i][j])}```"
+                    )
                     return
             k += 1
 
-    board_message = "```toml\n" \
-                    f"[session id: {str(session_id)}] [player: " \
-                    f"{serialize_turn(sessions[session_id].player)}]\n\n"
-    i = 0
-    for row in sessions[session_id].board_matrix:
-        for cell in row:
-            board_message += " "
-            if cell != Player.E:
-                board_message += serialize_turn(cell)
-            else:
-                board_message += str(i)
-            i += 1
-        board_message += "\n"
+    await message.channel.send(str(board))
+
+
+async def select(message, args):
+    global session_id
+    if int(args[2]) <= len(sessions) - 1:
+        session_id = int(args[2])
+
+    await list_sessions(message)
+
+
+async def list_sessions(message):
+    board_message = "```toml\n[boards]:\n"
+    for i in range(len(sessions)):
+        if i == session_id:
+            board_message += f"\t[session_id: {i}] [owner: " \
+                f"{sessions[i].owner}]\n"
+        else:
+            board_message += f"\t session_id: {i} | owner: " \
+                f"{sessions[i].owner}\n"
     board_message += "```"
     await message.channel.send(board_message)
 
@@ -148,48 +168,20 @@ async def ttt(message, args):
         await move(message, args)
 
     if args[1] == "select":
-        global session_id
-        if int(args[2]) <= len(sessions) - 1:
-            session_id = int(args[2])
-
-        board_message = "```toml\n[boards]:\n"
-        for i in range(len(sessions)):
-            if i == session_id:
-                board_message += f"\t[session_id: {i}] [owner: {sessions[i].owner}]\n"
-            else:
-                board_message += f"\t session_id: {i} | owner: {sessions[i].owner}\n"
-        board_message += "```"
-        await message.channel.send(board_message)
+        await select(message, args)
 
     if args[1] == "new":
-        await new(message)
+        try:
+            if args[2] == "bot":
+                await new(message, bot=serialize_turn(args[3]))
+        except IndexError:
+            await new(message)
 
     if args[1] == "list":
-        board_message = "```toml\n[boards]:\n"
-        for i in range(len(sessions)):
-            if i == session_id:
-                board_message += f"\t[session_id: {i}] [owner: {sessions[i].owner}]\n"
-            else:
-                board_message += f"\t session_id: {i} | owner: {sessions[i].owner}\n"
-        board_message += "```"
-        await message.channel.send(board_message)
+        await list_sessions(message)
 
     if args[1] == "print":
-        board_message = "```toml\n" \
-                        f"[session id: {str(session_id)}] [player:" \
-                        f"{serialize_turn(sessions[session_id].player)}]\n\n"
-        i = 0
-        for row in sessions[session_id].board_matrix:
-            for cell in row:
-                board_message += " "
-                if cell != Player.E:
-                    board_message += serialize_turn(cell)
-                else:
-                    board_message += str(i)
-                i += 1
-            board_message += "\n"
-        board_message += "```"
-        await message.channel.send(board_message)
+        await message.channel.send(str(sessions[session_id]))
 
 
 @client.event
@@ -205,7 +197,6 @@ async def on_message(message):
     args = message.content.split()
 
     if args[0] == "ttt":
-        await message.delete()
         await ttt(message, args)
 
 
