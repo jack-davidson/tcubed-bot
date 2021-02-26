@@ -43,7 +43,11 @@ def deserialize_board(board: str) -> list[list[Player]]:
 
 
 def serialize_board(board_matrix):
-    pass
+    board_string = ""
+    for row in board_matrix:
+        for cell in row:
+            board_string += serialize_turn(cell)
+    return board_string
 
 
 # format http uri with host and port
@@ -61,7 +65,7 @@ def api_request(uri):
 
 
 # make an api request to tcubed api and return best move given board and player
-def best_move(message, board, player):
+def best_move(board, player):
     return api_request(
         format_uri(API_HOST, API_PORT) + "/board/" + board + "/player/"
         + player
@@ -74,10 +78,12 @@ class Session:
 
     def __init__(self, board_string, owner="unkown", bot=False):
         global session_id
-        self.bot = bot
+
         self.board_matrix = deserialize_board(board_string)
         self.player = Player.X
         self.owner = owner
+        self.bot = bot
+
         sessions.append(self)
         session_id = len(sessions) - 1
 
@@ -94,6 +100,13 @@ class Session:
             self.next_player()
         else:
             raise Session.MoveAlreadyTakenError
+
+    def moves_left(self):
+        for row in self.board_matrix:
+            for cell in row:
+                if cell == Player.E:
+                    return True
+        return False
 
     def __str__(self):
         board_string = ""
@@ -125,18 +138,42 @@ async def move(message, args):
     global session_id
     k = 0
     board = sessions[session_id]
-    for i in range(3):
-        for j in range(3):
-            if k == int(args[2]):
-                try:
-                    board.move(i, j)
-                except Session.MoveAlreadyTakenError:
-                    await message.channel.send(
-                        "```diff\n-move already taken by "
-                        f"{serialize_turn(board.board_matrix[i][j])}```"
-                    )
-                    return
-            k += 1
+    if not board.moves_left():
+        await message.channel.send("there are no moves left")
+        return
+
+    if board.bot is not False:
+        for i in range(3):
+            for j in range(3):
+                if k == int(args[2]):
+                    try:
+                        board.move(i, j)
+                    except Session.MoveAlreadyTakenError:
+                        await message.channel.send(
+                            "```diff\n-move already taken by "
+                            f"{serialize_turn(board.board_matrix[i][j])}```"
+                        )
+                        return
+                k += 1
+
+        await message.channel.send(f"```toml\n[Player {serialize_turn(board.player)} is thinking ...]```")
+        if not board.moves_left():
+            await message.channel.send("there are no moves left")
+            return
+        board.move(*best_move(serialize_board(board.board_matrix), serialize_turn(board.player)))
+    else:
+        for i in range(3):
+            for j in range(3):
+                if k == int(args[2]):
+                    try:
+                        board.move(i, j)
+                    except Session.MoveAlreadyTakenError:
+                        await message.channel.send(
+                            "```diff\n-move already taken by "
+                            f"{serialize_turn(board.board_matrix[i][j])}```"
+                        )
+                        return
+                k += 1
 
     await message.channel.send(str(board))
 
@@ -171,10 +208,10 @@ async def ttt(message, args):
         await select(message, args)
 
     if args[1] == "new":
-        try:
+        if len(args) == 3:
             if args[2] == "bot":
-                await new(message, bot=serialize_turn(args[3]))
-        except IndexError:
+                await new(message, bot=Player.O)
+        else:
             await new(message)
 
     if args[1] == "list":
