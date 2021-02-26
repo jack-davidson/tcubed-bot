@@ -205,8 +205,8 @@ async def on_message(message):
     args = message.content.split()
 
     if args[0] == "ttt":
-        await ttt(message, args)
         await message.delete()
+        await ttt(message, args)
 
 
 client.run(token)
