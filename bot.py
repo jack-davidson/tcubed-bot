@@ -38,8 +38,9 @@ def serialize_turn(player: 'Player') -> str:
 
 
 def deserialize_board(board: str) -> list[list[Player]]:
-    return [[deserialize_turn(x) for x in board[i:i + int(math.sqrt(len(board)))]]
-            for i in range(0, len(board), int(math.sqrt(len(board))))]
+    return [
+        [deserialize_turn(x) for x in board[i:i + int(math.sqrt(len(board)))]]
+        for i in range(0, len(board), int(math.sqrt(len(board))))]
 
 
 def serialize_board(board_matrix):
@@ -76,7 +77,8 @@ class Session:
     class MoveAlreadyTakenError(Exception):
         pass
 
-    def __init__(self, board_string, guest="unkown", owner="unkown", bot=False):
+    def __init__(self, board_string, guest="unkown", owner="unkown",
+                 bot=False):
         global session_id
 
         self.board_matrix = deserialize_board(board_string)
@@ -90,10 +92,6 @@ class Session:
 
     def next_player(self):
         self.player = -self.player
-
-    def declare_win(self, player):
-        self.game_over = True
-        self.winning_player = player
 
     def move(self, row, col):
         if self.board_matrix[row][col] == Player.E:
@@ -127,6 +125,44 @@ class Session:
                f"{serialize_turn(self.player)}]\n\n" \
                f"{board_string}```"
 
+    # THIS IS HORRIBLE CODE
+    def evaluate(self) -> bool:
+        # Checking for Rows for X or O victory.
+        for row in range(3):
+            if self.board_matrix[row][0] == self.board_matrix[row][1] and self.board_matrix[row][1] == self.board_matrix[row][2]:
+                if self.board_matrix[row][0] == Player.X:
+                    return 1
+
+                elif self.board_matrix[row][0] == Player.O:
+                    return -1
+
+        # Checking for Columns for X or O victory.
+        for col in range(3):
+            if self.board_matrix[0][col] == self.board_matrix[1][col] and self.board_matrix[1][col] == self.board_matrix[2][col]:
+                if self.board_matrix[0][col] == Player.X:
+                    return 1
+
+                elif self.board_matrix[0][col] == Player.O:
+                    return -1
+
+        # Checking for Diagonals for X or O victory.
+        if self.board_matrix[0][0] == self.board_matrix[1][1] and self.board_matrix[1][1] == self.board_matrix[2][2]:
+            if self.board_matrix[0][0] == Player.X:
+                return 1
+
+            elif self.board_matrix[0][0] == Player.O:
+                return -1
+
+        if self.board_matrix[0][2] == self.board_matrix[1][1] and self.board_matrix[1][1] == self.board_matrix[2][0]:
+            if self.board_matrix[0][2] == Player.X:
+                return 1
+
+            elif self.board_matrix[0][2] == Player.O:
+                return -1
+
+        # Else if none of them have won then return 0
+        return 0
+
 
 async def new(message, bot=False):
     board = Session("E" * 9, owner=str(message.author))
@@ -145,7 +181,8 @@ async def move(message, args):
         board.guest = message.author
 
     if str(message.author) not in (str(board.owner), str(board.guest)):
-        await message.channel.send(f"only {board.owner} and {board.guest} are allowed to play in this session")
+        await message.channel.send(f"only {board.owner} and {board.guest} "
+                                   "are allowed to play in this session")
         return
 
     if not board.moves_left():
@@ -157,6 +194,11 @@ async def move(message, args):
             if k == int(args[2]):
                 try:
                     board.move(i, j)
+                    win = board.evaluate()
+                    if win is not Player.E:
+                        await message.channel.send(f"```diff\n+{message.author} wins!```")
+                        return
+
                 except Session.MoveAlreadyTakenError:
                     await message.channel.send(
                         "```diff\n-move already taken by "
@@ -166,12 +208,21 @@ async def move(message, args):
             k += 1
 
     if board.bot is not False:
+        await message.channel.send(str(board))
         if not board.moves_left():
             await message.channel.send("there are no moves left")
             return
 
-        await message.channel.send(f"```toml\n[Player {serialize_turn(board.player)} is thinking ...]```")
-        board.move(*best_move(serialize_board(board.board_matrix), serialize_turn(board.player)))
+        await message.channel.send(
+            "```toml\n[Player "
+            f"{serialize_turn(board.player)} is thinking ...]```")
+        board.move(*best_move(serialize_board(board.board_matrix),
+                              serialize_turn(board.player)))
+        win = board.evaluate()
+        if win is not Player.E:
+            await message.channel.send(f"```diff\n+{board.guest} wins!```")
+            board.winning_player = win
+            return
 
     await message.channel.send(str(board))
 
