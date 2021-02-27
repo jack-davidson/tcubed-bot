@@ -260,13 +260,25 @@ async def ttt_help(message):
 
 async def usage(message):
     await message.channel.send("```Usage: ttt COMMAND [ARGS] ..."
-                               "\nTry 'ttt help' for more information.```")
+                               "\nTry 'ttt help' for more information."
+                               "\nTry 'ttt license' for license information"
+                               "```")
+
+
+async def license(message):
+    with open("LICENSE", "r") as f:
+        await message.channel.send("```\n" + f.read() + "```")
+        f.close()
 
 
 # ttt main function (process args etc)
 async def ttt(message, args):
     if args[1] == "help":
         await ttt_help(message)
+        return
+
+    if args[1] == "license":
+        await license(message)
         return
 
     if args[1] == "move":
