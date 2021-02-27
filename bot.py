@@ -109,7 +109,7 @@ class Session:
 
     def __str__(self):
         board_string = ""
-        i = 0
+        i = 1
         for row in self.board_matrix:
             for cell in row:
                 board_string += " "
@@ -174,7 +174,7 @@ async def new(message, bot=False):
 
 async def move(message, args):
     global session_id
-    k = 0
+    k = 1
     board = sessions[session_id]
 
     if str(message.author) != str(board.owner):
@@ -197,6 +197,7 @@ async def move(message, args):
                     win = board.evaluate()
                     if win is not Player.E:
                         await message.channel.send(f"```diff\n+{message.author} wins!```")
+                        sessions.pop(session_id)
                         return
 
                 except Session.MoveAlreadyTakenError:
@@ -221,7 +222,7 @@ async def move(message, args):
         win = board.evaluate()
         if win is not Player.E:
             await message.channel.send(f"```diff\n+{board.guest} wins!```")
-            board.winning_player = win
+            sessions.pop(session_id)
             return
 
     await message.channel.send(str(board))
@@ -248,19 +249,30 @@ async def list_sessions(message):
     await message.channel.send(board_message)
 
 
+async def ttt_help(message):
+    with open("README.md", "r") as f:
+        await message.channel.send("```md\nREADME.md\n\n" + f.read() + "```")
+        f.close()
+
+
+async def usage(message):
+    await message.channel.send("```Usage: ttt COMMAND [ARGS] ..."
+                               "\nTry 'ttt help' for more information.```")
+
+
 # ttt main function (process args etc)
 async def ttt(message, args):
     if args[1] == "help":
-        with open("README.md", "r") as f:
-            await message.channel.send(f.read())
-            f.close()
+        await ttt_help(message)
         return
 
     if args[1] == "move":
         await move(message, args)
+        return
 
     if args[1] == "select":
         await select(message, args)
+        return
 
     if args[1] == "new":
         if len(args) == 3:
@@ -268,12 +280,15 @@ async def ttt(message, args):
                 await new(message, bot=Player.O)
         else:
             await new(message)
+        return
 
     if args[1] == "list":
         await list_sessions(message)
+        return
 
     if args[1] == "print":
         await message.channel.send(str(sessions[session_id]))
+        return
 
 
 @client.event
@@ -287,9 +302,7 @@ async def on_message(message):
         return
 
     if message.content == "ttt":
-        with open("README.md", "r") as f:
-            await message.channel.send(f.read())
-            f.close()
+        await usage(message)
         return
 
     args = message.content.split()
