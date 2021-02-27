@@ -187,6 +187,7 @@ async def move(message, args):
 
     if not board.moves_left():
         await message.channel.send("there are no moves left")
+        sessions.pop(session_id)
         return
 
     for i in range(3):
@@ -196,6 +197,7 @@ async def move(message, args):
                     board.move(i, j)
                     win = board.evaluate()
                     if win is not Player.E:
+                        await message.channel.send(str(board))
                         await message.channel.send(f"```diff\n+{message.author} wins!```")
                         sessions.pop(session_id)
                         return
@@ -221,6 +223,7 @@ async def move(message, args):
                               serialize_turn(board.player)))
         win = board.evaluate()
         if win is not Player.E:
+            await message.channel.send(str(board))
             await message.channel.send(f"```diff\n+{board.guest} wins!```")
             sessions.pop(session_id)
             return
