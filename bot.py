@@ -305,6 +305,12 @@ async def ttt(message, args):
         await list_sessions(message)
         return
 
+    if args[1] == "remove":
+        sessions.pop(int(args[2]))
+        await message.channel.send("```diff\n+sucessfully removed session "
+                                   f"{int(args[2])}```")
+        return
+
     if args[1] == "print":
         await message.channel.send(str(sessions[session_id]))
         return
