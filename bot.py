@@ -164,11 +164,13 @@ class Session:
         return 0
 
 
-async def new(message, bot=False):
+async def new(message, args, bot=False):
     board = Session("E" * 9, owner=str(message.author))
     if bot is not False:
         board.guest = "BOT"
         board.bot = bot
+    else:
+        board.guest = message.mentions[0]
     await message.channel.send(str(board))
 
 
@@ -177,12 +179,10 @@ async def move(message, args):
     k = 1
     board = sessions[session_id]
 
-    if str(message.author) != str(board.owner):
-        board.guest = message.author
-
-    if str(message.author) not in (str(board.owner), str(board.guest)):
-        await message.channel.send(f"only {board.owner} and {board.guest} "
-                                   "are allowed to play in this session")
+    if str(message.author) not in [board.owner, board.guest]:
+        await message.channel.send("```diff\n-allowed users of session"
+                                   f"{session_id} "
+                                   f"are: {board.owner} and {board.guest}```")
         return
 
     if not board.moves_left():
@@ -292,9 +292,13 @@ async def ttt(message, args):
     if args[1] == "new":
         if len(args) == 3:
             if args[2] == "bot":
-                await new(message, bot=Player.O)
+                await new(message, args, bot=Player.O)
+            else:
+                await new(message, args)
         else:
-            await new(message)
+            await message.channel.send("```diff\n-please mention your "
+                                       "opponent after your command: 'ttt new "
+                                       "@user'```")
         return
 
     if args[1] == "list":
