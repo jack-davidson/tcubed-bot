@@ -250,6 +250,12 @@ async def list_sessions(message):
 
 # ttt main function (process args etc)
 async def ttt(message, args):
+    if args[1] == "help":
+        with open("README.md", "r") as f:
+            await message.channel.send(f.read())
+            f.close()
+        return
+
     if args[1] == "move":
         await move(message, args)
 
@@ -278,6 +284,12 @@ async def on_ready():
 @client.event
 async def on_message(message):
     if message.author == client.user:
+        return
+
+    if message.content == "ttt":
+        with open("README.md", "r") as f:
+            await message.channel.send(f.read())
+            f.close()
         return
 
     args = message.content.split()
