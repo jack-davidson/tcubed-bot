@@ -261,7 +261,7 @@ async def ttt_help(message):
 async def usage(message):
     await message.channel.send("```Usage: ttt COMMAND [ARGS] ..."
                                "\nTry 'ttt help' for more information."
-                               "\nTry 'ttt license' for license information"
+                               "\nTry 'ttt license' for license information."
                                "```")
 
 
