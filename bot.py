@@ -167,7 +167,7 @@ class Session:
 async def new(message, args, bot=False):
     board = Session("E" * 9, owner=str(message.author))
     if bot is not False:
-        board.guest = "BOT"
+        board.guest = client.user
         board.bot = bot
     else:
         board.guest = message.mentions[0]
@@ -216,15 +216,14 @@ async def move(message, args):
             await message.channel.send("there are no moves left")
             return
 
-        await message.channel.send(
-            "```toml\n[Player "
-            f"{serialize_turn(board.player)} is thinking ...]```")
+        await message.channel.send("I'm thinking gimme a sec")
         board.move(*best_move(serialize_board(board.board_matrix),
                               serialize_turn(board.player)))
         win = board.evaluate()
         if win is not Player.E:
             await message.channel.send(str(board))
             await message.channel.send(f"```diff\n+{board.guest} wins!```")
+            await message.channel.send("gg")
             sessions.pop(session_id)
             return
 
@@ -291,7 +290,7 @@ async def ttt(message, args):
 
     if args[1] == "new":
         if len(args) == 3:
-            if args[2] == "bot":
+            if message.mentions[0] == client.user:
                 await new(message, args, bot=Player.O)
             else:
                 await new(message, args)
@@ -307,7 +306,7 @@ async def ttt(message, args):
 
     if args[1] == "remove":
         sessions.pop(int(args[2]))
-        await message.channel.send("```diff\n+sucessfully removed session "
+        await message.channel.send("```diff\n+successfully removed session 0 "
                                    f"{int(args[2])}```")
         return
 
