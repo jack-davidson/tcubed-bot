@@ -170,7 +170,7 @@ async def new(message, args, bot=False):
         board.guest = client.user
         board.bot = bot
     else:
-        board.guest = message.mentions[0]
+        board.guest = str(message.mentions[0])
     await message.channel.send(str(board))
 
 
