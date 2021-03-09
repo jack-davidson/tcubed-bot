@@ -79,6 +79,7 @@ class Session:
 
     def __init__(self, board_string, guest="unkown", owner="unkown",
                  bot=False):
+
         global session_id
 
         self.board_matrix = deserialize_board(board_string)
@@ -164,6 +165,11 @@ class Session:
         return 0
 
 
+async def message_log(message, msg, err=False):
+    await message.channel.send("```diff\n" + "-" if err else "+" + " " + msg
+                               + "```")
+
+
 async def new(message, args, bot=False):
     board = Session("E" * 9, owner=str(message.author))
     if bot is not False:
@@ -180,9 +186,10 @@ async def move(message, args):
     board = sessions[session_id]
 
     if str(message.author) not in [board.owner, board.guest]:
-        await message.channel.send("```diff\n-allowed users of session"
-                                   f"{session_id} "
-                                   f"are: {board.owner} and {board.guest}```")
+        await message_log(message,
+                          f"allowed users of session {session_id} "
+                          f"are: {board.owner} and {board.guest}```",
+                          err=True)
         return
 
     if not board.moves_left():
@@ -199,6 +206,7 @@ async def move(message, args):
                     if win is not Player.E:
                         await message.channel.send(str(board))
                         await message.channel.send(f"```diff\n+{message.author} wins!```")
+                        await message_log(message, f"{message.author} wins!")
                         sessions.pop(session_id)
                         return
 
